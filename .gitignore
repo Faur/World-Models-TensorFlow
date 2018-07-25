@@ -4,3 +4,4 @@ logdir/
 saved_models
 *npy
 gym
+.idea/*
