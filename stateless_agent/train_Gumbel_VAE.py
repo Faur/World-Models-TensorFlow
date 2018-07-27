@@ -1,6 +1,13 @@
 import tensorflow as tf
 import numpy as np
 import glob, random, os
+
+import os, sys, inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0, parentdir)
+from tensorboard_logging import Logger
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 model_path = "saved_models/"
