@@ -11,17 +11,19 @@ from tensorboard_logging import Logger
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 model_path = "saved_models/"
-model_name = model_path + 'Gumbel_model'
+exp_name = '_temp_anneal_2'
+model_name = model_path + 'Gumbel_model' + exp_name
 
 class Network(object):
     # Create model
     def __init__(self, K=32, N=16):
-        self.K = K
-        self.N = N
-        self.temperature = tf.Variable(5.0, name="temperature")
+        self.N = N  # number of variables
+        self.K = K  # number of values per variable
+        self.temperature = tf.placeholder(tf.float32, [], name='temperature')
 
         self.image = tf.placeholder(tf.float32, [None, 96, 96, 3], name='image')
         self.resized_image = tf.image.resize_images(self.image, [64, 64])
+        self.data_dim = 64*64*3
         tf.summary.image('resized_image', self.resized_image, 20)
 
         self.gumbel_logits = self.encoder(self.resized_image)
@@ -106,7 +108,8 @@ def train_vae():
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
-    writer = tf.summary.FileWriter('logdir/Gumbel')
+    writer = tf.summary.FileWriter('logdir/'+exp_name)
+    logger = Logger('logdir/'+exp_name)
 
     network = Network()
     train_op = tf.train.AdamOptimizer(0.001).minimize(network.loss, global_step=global_step)
@@ -122,24 +125,36 @@ def train_vae():
     except:
         print("Could not restore saved model")
 
+    temp_0 = 5
+    temp_min = 0.5
+    temp_anneal = 0.0003
+    temp_STUPID_CONSTANT = 8000  # TODO
+
     try:
         while True:
-            print('step:', step)
             images = next(training_data)
-            _, loss_value, summary = sess.run([train_op, network.loss, network.merged],
-                                feed_dict={network.image: images})
-            writer.add_summary(summary, step)
+            temperature = np.max(temp_min, temp_0*np.exp(-temp_anneal*step / temp_STUPID_CONSTANT))
+
+            _, loss_value = sess.run([train_op, network.loss],
+                                feed_dict={network.image: images,
+                                           network.temperature: temperature})
 
             if np.isnan(loss_value):
                 raise ValueError('Loss value is NaN')
             if step % 10 == 0 and step > 0:
-                print ('step {}: training loss {:.6f}'.format(step, loss_value))
+                [summary] = sess.run([network.merged],
+                                                  feed_dict={network.image: images,
+                                                             network.temperature: temperature})
+                writer.add_summary(summary, step)
+                logger.log_scalar('train/temperature', temperature, step)
+                print('step {}: training loss {:.6f}'.format(step, loss_value))
                 save_path = saver.save(sess, model_name, global_step=global_step)
-            if loss_value <= 35:
-                print ('step {}: training loss {:.6f}'.format(step, loss_value))
+            if loss_value <= 0:
+            # if loss_value <= 35:
+                print('step {}: training loss {:.6f}'.format(step, loss_value))
                 save_path = saver.save(sess, model_name, global_step=global_step)
                 break
-            step+=1
+            step += 1
 
     except (KeyboardInterrupt, SystemExit):
         print("Manual Interrupt")
