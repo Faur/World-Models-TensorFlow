@@ -31,7 +31,7 @@ class Network(object):
     # Create model
     def __init__(self, N=16, M=8, lr = 0.00005):  # TODO: Better param handling
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
-        self.epochs = 100
+        self.epochs = 1000
         self.batch_size = 64
         self.learning_rate = lr  # Default: 0.001
 
@@ -43,9 +43,10 @@ class Network(object):
         self.activation = 'relu'
 
         self.tau = K.variable(5.0, name="temperature")
-        self.tau0 = K.variable(5.0, name="start_temperature")
+        # self.tau0 = K.variable(5.0, name="start_temperature")
+        self.tau0 = 5.0
         self.tau_min = 0.1
-        half_life = 100
+        half_life = 25
         self.anneal_rate = np.log(2)/half_life
 
         self.model, self.decoder, self.tester = self._build_model()
@@ -156,7 +157,8 @@ class Network(object):
         self.model.fit(data, data,
                        shuffle=True,
                        epochs=1,
-                       batch_size=self.batch_size)
+                       batch_size=self.batch_size,
+                       verbose=0)
 
         self.model.save_weights('./vae/weights.h5')
 
@@ -201,38 +203,45 @@ def train_vae():
     # TODO: ^: Don't hardcode like this
 
     try:
+        batch_to_load = '../data/obs_data_VAE_' + str(test_batch) + '.npy'
+        test_data = np.load(batch_to_load)
+        test_data = resize(test_data, (len(test_data), 64, 64, 3), anti_aliasing=True)
+        test_data_reduced = test_data[50:50 + 96]
+
         for epoch in range(vae.epochs):
-            print('EPOCH ' + str(epoch))
             for batch_num in range(start_batch, max_batch + 1):
-                # TODO: Handle data properly. dont load all the time!
+                K.set_value(vae.tau,np.max([vae.tau_min,
+                        vae.tau0 * np.exp(-vae.anneal_rate * K.get_value(vae.global_step))]))
+                print('EPOCH ' + str(epoch), "- batch", batch_num, '- step', K.get_value(vae.global_step),
+                      "- tau {:5.3f}".format(K.get_value(vae.tau)),
+                      '- Validationscore', vae.model.evaluate(test_data, test_data, verbose=0))
+
                 batch_to_load = '../data/obs_data_VAE_' + str(batch_num) + '.npy'
+                # TODO: Handle data properly. dont load all the time!
                 try:
                     data = np.load(batch_to_load)
                     # data = data[:150]  # <-- ONLY FOR TESTING
 
                     data = resize(data, (len(data), 64, 64, 3), anti_aliasing=True).astype(np.float32)
-                    print('Found batch at {}...current data size = {} episodes'.format(
+                    print('\tFound batch at {}...current data size = {} episodes'.format(
                         batch_to_load, len(data)))
                 except:
-                    print('Unable to load:', batch_to_load)
+                    print('\tUnable to load:', batch_to_load)
                     continue
 
                 vae.train(data)
                 vae.model.save_weights('./vae/weights.h5')
+                K.set_value(vae.global_step, K.get_value(vae.global_step) + 1)
+                print()
 
             ## Testing
             # TODO: Make the videos sexy, like in the notebook
             print('\nTesting')
-            batch_to_load = '../data/obs_data_VAE_' + str(test_batch) + '.npy'
-            data = np.load(batch_to_load)
-            data = data[50:50+96]
-            data = resize(data, (len(data), 64, 64, 3), anti_aliasing=True)
+            print("\tValidation score", vae.model.evaluate(test_data, test_data, verbose=0))
 
-            print("Validation score", vae.model.evaluate(data, data))
-
-            pred = vae.model.predict(data)
+            pred = vae.model.predict(test_data_reduced, verbose=0)
             title = "e{}".format(epoch)
-            show_pred(title, data, pred)
+            show_pred(title, test_data_reduced, pred)
             print('')
 
 
