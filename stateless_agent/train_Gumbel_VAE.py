@@ -290,7 +290,8 @@ def train_vae():
 
             ## Testing
             if epoch % 1 == 0:# and epoch > 0:
-                # TODO: Make the videos sexy, like in the notebook
+                n = np.random.randint(96, len(test_data)-96)
+                test_data_reduced = test_data[n:n + 96]
                 print('\nTesting')
                 print("\tValidation score", vae.model.evaluate(test_data, test_data, verbose=0))
 
