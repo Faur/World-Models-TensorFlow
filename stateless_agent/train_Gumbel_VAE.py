@@ -116,6 +116,12 @@ class Network(object):
 
         self.model.save_weights('./vae/weights.h5')
 
+    def get_embedding(self, sess, observation, hard=False):
+        #TODO
+        if hard:
+            raise Exception
+        else:
+            return self.encoder.predict(observation)[1]
 
 def data_iterator(batch_size):
     data_files = glob.glob('../data/obs_data_VAE_*')
@@ -197,27 +203,29 @@ def train_vae():
 
 
 def load_vae():
-    sess = tf.InteractiveSession()
 
-    graph = tf.Graph()
-    with graph.as_default():
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        sess = tf.Session(config=config, graph=graph)
-
-        network = Network()
-        init = tf.global_variables_initializer()
-        sess.run(init)
-
-        saver = tf.train.Saver(max_to_keep=1)
-        training_data = data_iterator(batch_size=128)
-
-        try:
-            saver.restore(sess, tf.train.latest_checkpoint(model_path))
-        except:
-            raise ImportError("Could not restore saved model")
-
-        return sess, network
+    raise NotImplementedError
+    # sess = tf.InteractiveSession()
+    #
+    # graph = tf.Graph()
+    # with graph.as_default():
+    #     config = tf.ConfigProto()
+    #     config.gpu_options.allow_growth = True
+    #     sess = tf.Session(config=config, graph=graph)
+    #
+    #     network = Network()
+    #     init = tf.global_variables_initializer()
+    #     sess.run(init)
+    #
+    #     saver = tf.train.Saver(max_to_keep=1)
+    #     training_data = data_iterator(batch_size=128)
+    #
+    #     try:
+    #         saver.restore(sess, tf.train.latest_checkpoint(model_path))
+    #     except:
+    #         raise ImportError("Could not restore saved model")
+    #
+    #     return sess, network
 
 if __name__ == '__main__':
     train_vae()

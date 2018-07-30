@@ -11,13 +11,17 @@ from gym.envs.box2d import CarRacing
 import cma
 import multiprocessing as mp
 
-# from train_VAE import load_vae
-from train_Gumbel_VAE import load_vae
+from train_VAE import load_vae
+from train_VAE import _EMBEDDING_SIZE
+# from train_Gumbel_VAE import load_vae
+# from train_Gumbel_VAE import _EMBEDDING_SIZE
 
-_EMBEDDING_SIZE = 32
+# _EMBEDDING_SIZE = 32 # TODO Handle this!
 _NUM_PREDICTIONS = 2
 _NUM_ACTIONS = 3
 _NUM_PARAMS = _NUM_PREDICTIONS * _EMBEDDING_SIZE + _NUM_PREDICTIONS
+
+env = CarRacing()
 
 def normalize_observation(observation):
     return observation.astype('float32') / 255.
@@ -30,7 +34,8 @@ def get_weights_bias(params):
 
 def decide_action(sess, network, observation, params):
     observation = normalize_observation(observation)
-    embedding = sess.run(network.z, feed_dict={network.image: observation[None, :,  :,  :]})
+    embedding = network.get_embedding(sess, observation)
+    # embedding = sess.run(network.z, feed_dict={network.image: observation[None, :,  :,  :]})
     weights, bias = get_weights_bias(params)
 
     action = np.zeros(_NUM_ACTIONS)
@@ -46,8 +51,6 @@ def decide_action(sess, network, observation, params):
         action[1] = 0
 
     return action
-
-env = CarRacing()
 
 def play(params, render=True, verbose=False):
     sess, network = load_vae()

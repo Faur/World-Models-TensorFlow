@@ -6,6 +6,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 model_path = "saved_models/"
 model_name = model_path + 'model'
 
+_EMBEDDING_SIZE = 32  # TODO: Handle this better!
+
 class Network(object):
     # Create model
     def __init__(self):
@@ -33,8 +35,8 @@ class Network(object):
         x = tf.layers.conv2d(x, filters=256, kernel_size=4, strides=2, padding='valid', activation=tf.nn.relu)
 
         x = tf.layers.flatten(x)
-        z_mu = tf.layers.dense(x, units=32, name='z_mu')
-        z_logvar = tf.layers.dense(x, units=32, name='z_logvar')
+        z_mu = tf.layers.dense(x, units=_EMBEDDING_SIZE, name='z_mu')
+        z_logvar = tf.layers.dense(x, units=_EMBEDDING_SIZE, name='z_logvar')
         return z_mu, z_logvar
 
     def decoder(self, z):
@@ -53,6 +55,10 @@ class Network(object):
         kl_loss = 0.5 * tf.reduce_sum(tf.exp(self.z_logvar) + self.z_mu**2 - 1. - self.z_logvar, 1)
         vae_loss = tf.reduce_mean(reconstruction_loss + kl_loss)
         return vae_loss
+
+    def get_embedding(self, sess, observation):
+        return sess.run(self.z, feed_dict={self.image: observation[None, :, :, :]})
+
 
 def data_iterator(batch_size):
     data_files = glob.glob('../data/obs_data_VAE_*')
