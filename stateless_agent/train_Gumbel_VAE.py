@@ -21,15 +21,21 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 from tensorboard_logging import Logger
 
+import utils
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 model_path = "saved_models/"
 exp_name = '_temp_anneal_2'
 model_name = model_path + 'Gumbel_model' + exp_name
 
+_GLOBAL_N = 16
+_GLOBAL_M = 8
+_EMBEDDING_SIZE = _GLOBAL_N * _GLOBAL_M  # TODO: Handle this better!
+
 class Network(object):
     # Create model
-    def __init__(self, N=16, M=8, lr = 0.00005):  # TODO: Better param handling
+    def __init__(self, N=_GLOBAL_N, M=_GLOBAL_M, lr = 0.00005):  # TODO: Better param handling
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         self.epochs = 1000
         self.batch_size = 64
