@@ -29,11 +29,11 @@ model_name = model_path + 'Gumbel_model' + exp_name
 
 class Network(object):
     # Create model
-    def __init__(self, N=12, M=8):  # TODO: Better param
+    def __init__(self, N=16, M=8, lr = 0.00005):  # TODO: Better param handling
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
-        self.epochs = 10
+        self.epochs = 100
         self.batch_size = 64
-        self.learning_rate = 0.0001  # Default: 0.001
+        self.learning_rate = lr  # Default: 0.001
 
         self.N = N  # number of variables
         self.M = M  # number of values per variable
@@ -176,7 +176,7 @@ def show_pred(title, data, pred):
     plt.figure(figsize=(10, 10))
     max = len(pred)
     for i in range(max):
-        print('\rPlotting vae pred:', i, '/', max, end='')
+        print('\rPlotting vae pred: {}/{}'.format(i, max), end='')
         plt.subplot(121)
         plt.imshow(data[i])
         plt.title(str(i))
@@ -204,6 +204,7 @@ def train_vae():
         for epoch in range(vae.epochs):
             print('EPOCH ' + str(epoch))
             for batch_num in range(start_batch, max_batch + 1):
+                # TODO: Handle data properly. dont load all the time!
                 batch_to_load = '../data/obs_data_VAE_' + str(batch_num) + '.npy'
                 try:
                     data = np.load(batch_to_load)
@@ -220,6 +221,7 @@ def train_vae():
                 vae.model.save_weights('./vae/weights.h5')
 
             ## Testing
+            # TODO: Make the videos sexy, like in the notebook
             print('\nTesting')
             batch_to_load = '../data/obs_data_VAE_' + str(test_batch) + '.npy'
             data = np.load(batch_to_load)
