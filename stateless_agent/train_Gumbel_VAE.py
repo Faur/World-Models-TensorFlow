@@ -46,7 +46,7 @@ class Network(object):
         # self.tau0 = K.variable(5.0, name="start_temperature")
         self.tau0 = 5.0
         self.tau_min = 0.1
-        half_life = 25
+        half_life = 10
         self.anneal_rate = np.log(2)/half_life
 
         self.model, self.decoder, self.tester = self._build_model()
@@ -185,6 +185,46 @@ class Network(object):
         obs = resize(observation, (len(observation), 64, 64, 3), anti_aliasing=True)
         return obs.astype('float32') / 255.
 
+    def show_pred(self, title, data, logits, gumbel, pred):
+        max = len(pred)
+
+        for i in range(max):
+            # fig, [[ax00, ax01], [ax10, ax11]] = plt.subplots(2, 2, figsize=(10, 5))
+            fig = plt.figure(1, figsize=(10, 5))
+            print('\r' + title + ' - Plotting vae pred: {}/{}'.format(i, max), end='')
+            n = np.random.randint(len(data))
+
+            plt.subplot(221)
+            plt.imshow(data[n])
+            plt.title(title + 'i' + str(i))
+            plt.subplot(222)
+            plt.imshow(pred[n])
+            plt.title('pred')
+            # ax00.imshow(data[n])
+            # ax00.set_title("data")
+            # ax01.imshow(pred[n])
+            # ax01.set_title("pred")
+
+            plt.subplot(223)
+            plt.imshow(np.reshape(logits[n], (self.N, self.M)).T)
+            plt.title('logits')
+            plt.colorbar()
+            plt.subplot(224)
+            plt.imshow(np.reshape(gumbel[n], (self.N, self.M)).T)
+            plt.title('gumbel')
+
+            # im = ax10.imshow(np.reshape(logits[n], (self.N, self.M)).T)
+            # ax00.set_title("logits")
+            # cax = fig.add_axes()
+            # fig.colorbar(im, cax=cax)
+            # ax11.imshow(np.reshape(gumbel[n], (self.N, self.M)).T)
+            # ax00.set_title("gumbel")
+
+            plt.tight_layout()
+            plt.savefig('./videos/CarRacing-'+title+'-'+str(i)+'.png', bbox_inches='tight')
+            plt.close()
+        print()
+
 def data_iterator(batch_size):
     data_files = glob.glob('../data/obs_data_VAE_*')
     while True:
@@ -195,21 +235,6 @@ def data_iterator(batch_size):
         start = np.random.randint(0, N-batch_size)
         yield data[start:start+batch_size]
 
-
-def show_pred(title, data, pred):
-    plt.figure(figsize=(10, 10))
-    max = len(pred)
-    for i in range(max):
-        print('\rPlotting vae pred: {}/{}'.format(i, max), end='')
-        plt.subplot(121)
-        plt.imshow(data[i])
-        plt.title(str(i))
-
-        plt.subplot(122)
-        plt.imshow(pred[i])
-        plt.title(title)
-        plt.savefig('./videos/CarRacing-'+title+'-'+str(i)+'.png', bbox_inches='tight')
-    print()
 
 def train_vae():
     vae = Network()
@@ -228,50 +253,51 @@ def train_vae():
         print("Loading data ...")
         data_list = []
         for batch_num in range(start_batch, max_batch + 1):
-            # TODO: Handle data properly. dont load all the time!
             batch_to_load = '../data/obs_data_VAE_' + str(batch_num) + '.npy'
             try:
                 data = np.load(batch_to_load)
-                # data = data[:150]  # <-- ONLY FOR TESTING
+                # data = data[100:150]  # <-- ONLY FOR TESTING
 
-                data = data[:128]
                 data = resize(data, (len(data), 64, 64, 3), anti_aliasing=True).astype(np.float32)
                 print('\tFound batch at {}...current data size = {} episodes'.format(
                     batch_to_load, len(data)))
                 data_list.append(data)
             except:
                 print('\tUnable to load:', batch_to_load)
+        data = np.concatenate(data_list, axis=0)
 
         batch_to_load = '../data/obs_data_VAE_' + str(test_batch) + '.npy'
         test_data = np.load(batch_to_load)
         test_data = resize(test_data, (len(test_data), 64, 64, 3), anti_aliasing=True)
         print('\tFound batch at {}...current data size = {} episodes'.format(
             batch_to_load, len(test_data)))
+        print()
+
 
         print("Begin Training ...")
         for epoch in range(vae.epochs):
-            for batch_num in range(len(data_list)):
-                K.set_value(vae.tau,np.max([vae.tau_min,
-                        vae.tau0 * np.exp(-vae.anneal_rate * K.get_value(vae.global_step))]))
-                print('EPOCH ' + str(epoch), "- batch", batch_num, '- step', K.get_value(vae.global_step),
-                      "- tau {:5.3f}".format(K.get_value(vae.tau)),
-                      '- Validationscore', vae.model.evaluate(test_data, test_data, verbose=0))
+            # for batch_num in range(len(data_list)):
+            K.set_value(vae.tau,np.max([vae.tau_min,
+                    vae.tau0 * np.exp(-vae.anneal_rate * K.get_value(vae.global_step))]))
+            print('EPOCH ' + str(epoch), '- step', K.get_value(vae.global_step),
+                  "- tau {:5.3f}".format(K.get_value(vae.tau)),
+                  '- Validationscore', vae.model.evaluate(test_data, test_data, verbose=0))
 
-                data = data_list[batch_num]
-                vae.train(data)
-                vae.model.save_weights('./vae/weights.h5')
-                K.set_value(vae.global_step, K.get_value(vae.global_step) + 1)
-                print()
+            vae.train(data)
+            vae.model.save_weights('./vae/weights.h5')
+            K.set_value(vae.global_step, K.get_value(vae.global_step) + 1)
+            print()
 
             ## Testing
-            # TODO: Make the videos sexy, like in the notebook
-            print('\nTesting')
-            print("\tValidation score", vae.model.evaluate(test_data, test_data, verbose=0))
+            if epoch % 1 == 0:# and epoch > 0:
+                # TODO: Make the videos sexy, like in the notebook
+                print('\nTesting')
+                print("\tValidation score", vae.model.evaluate(test_data, test_data, verbose=0))
 
-            pred = vae.model.predict(test_data_reduced, verbose=0)
-            title = "e{}".format(epoch)
-            show_pred(title, test_data_reduced, pred)
-            print('')
+                logits, gumbel, pred = vae.tester.predict(test_data_reduced, verbose=0)
+                title = "e{}".format(epoch)
+                vae.show_pred(title, test_data_reduced, logits, gumbel, pred)
+                print('')
 
     except (KeyboardInterrupt, SystemExit):
         print("Manual Interrupt")
