@@ -11,20 +11,18 @@ from gym.envs.box2d import CarRacing
 import cma
 import multiprocessing as mp
 
-from train_VAE import load_vae
-from train_VAE import _EMBEDDING_SIZE
-# from train_Gumbel_VAE import load_vae
-# from train_Gumbel_VAE import _EMBEDDING_SIZE
+# from train_VAE import load_vae
+# from train_VAE import _EMBEDDING_SIZE
+from train_Gumbel_VAE import load_vae
+from train_Gumbel_VAE import _EMBEDDING_SIZE
 
 # _EMBEDDING_SIZE = 32 # TODO Handle this!
-_NUM_PREDICTIONS = 2
+_NUM_PREDICTIONS = 2  # TODO: This is cheating!
 _NUM_ACTIONS = 3
 _NUM_PARAMS = _NUM_PREDICTIONS * _EMBEDDING_SIZE + _NUM_PREDICTIONS
 
 env = CarRacing()
 
-def normalize_observation(observation):
-    return observation.astype('float32') / 255.
 
 def get_weights_bias(params):
     weights = params[:_NUM_PARAMS - _NUM_PREDICTIONS]
@@ -33,7 +31,7 @@ def get_weights_bias(params):
     return weights, bias
 
 def decide_action(sess, network, observation, params):
-    observation = normalize_observation(observation)
+    observation = network.normalize_observation(observation)
     embedding = network.get_embedding(sess, observation)
     # embedding = sess.run(network.z, feed_dict={network.image: observation[None, :,  :,  :]})
     weights, bias = get_weights_bias(params)
@@ -52,7 +50,8 @@ def decide_action(sess, network, observation, params):
 
     return action
 
-def play(params, render=True, verbose=False):
+
+def play(params, render=False, verbose=False):
     sess, network = load_vae()
     _NUM_TRIALS = 12
     agent_reward = 0
@@ -88,14 +87,19 @@ def play(params, render=True, verbose=False):
     return - (agent_reward / _NUM_TRIALS)
 
 def train():
-    es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': 16})
+    multi_thread = False
+
+    es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': 2})
     rewards_through_gens = []
     generation = 1
     try:
         while not es.stop():
             solutions = es.ask()
-            with mp.Pool(mp.cpu_count()) as p:
-                rewards = list(tqdm.tqdm(p.imap(play, list(solutions)), total=len(solutions)))
+            if multi_thread:
+                with mp.Pool(mp.cpu_count()) as p:
+                    rewards = list(tqdm.tqdm(p.imap(play, list(solutions)), total=len(solutions)))
+            else:
+                rewards = play(solutions, True, True)
 
             es.tell(solutions, rewards)
 
@@ -119,7 +123,8 @@ def train():
 if __name__ == '__main__':
     es = train()
     np.save('best_params', es.best.get()[0])
-    input("Press enter to play... ")
-    RENDER = True
-    score = play(es.best.get()[0], render=RENDER, verbose=True)
-    print("Final Score: {}".format(-score))
+    # input("Press enter to play... ")
+    # RENDER = True
+    # score = play(es.best.get()[0], render=RENDER, verbose=True)
+    # print("Final Score: {}".format(-score))
+    print('Done')
