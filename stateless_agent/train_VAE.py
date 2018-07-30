@@ -59,6 +59,9 @@ class Network(object):
     def get_embedding(self, sess, observation):
         return sess.run(self.z, feed_dict={self.image: observation[None, :, :, :]})
 
+    def normalize_observation(self, observation):
+        return observation.astype('float32') / 255.
+
 
 def data_iterator(batch_size):
     data_files = glob.glob('../data/obs_data_VAE_*')

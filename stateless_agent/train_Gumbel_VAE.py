@@ -138,6 +138,7 @@ class Network(object):
         return elbo
 
     def sampling(self, logits):
+        # TODO: Check - should this be logits or should we softmax?
         U = K.random_uniform(K.shape(logits), 0, 1)
         y = logits - K.log(-K.log(U + 1e-20) + 1e-20)  # logits + gumbel noise
         y = K.reshape(y, (-1, self.N, self.M)) / self.tau
@@ -163,11 +164,26 @@ class Network(object):
         self.model.save_weights('./vae/weights.h5')
 
     def get_embedding(self, sess, observation, hard=False):
-        #TODO
         if hard:
+            # TODO at test time it shuold be hard!
+            logits = self.encoder.predict(observation)[0]
+            logits = np.reshape(logits, (-1, self.N, self.M))
             raise Exception
+            prob = []
+            for l in range(logits.shape[0]):
+                prob.append(utils.softmax(logits[l], 0))
+
+            prob = np.array(prob)
+            print(np.sum(prob, 2))
+            return
+
         else:
             return self.encoder.predict(observation)[1]
+
+    def normalize_observation(self, observation):
+        # TODO: Probably reshape
+        obs = resize(observation, (len(observation), 64, 64, 3), anti_aliasing=True)
+        return obs.astype('float32') / 255.
 
 def data_iterator(batch_size):
     data_files = glob.glob('../data/obs_data_VAE_*')
@@ -196,10 +212,10 @@ def show_pred(title, data, pred):
     print()
 
 def train_vae():
-
     vae = Network()
     try:
       vae.set_weights('./vae/weights.h5')
+      print('Weights usccessfully loaded')
     except:
       print("No weights found in ./vae/weights.h5 exists")
 
@@ -209,32 +225,39 @@ def train_vae():
     # TODO: ^: Don't hardcode like this
 
     try:
+        print("Loading data ...")
+        data_list = []
+        for batch_num in range(start_batch, max_batch + 1):
+            # TODO: Handle data properly. dont load all the time!
+            batch_to_load = '../data/obs_data_VAE_' + str(batch_num) + '.npy'
+            try:
+                data = np.load(batch_to_load)
+                # data = data[:150]  # <-- ONLY FOR TESTING
+
+                data = data[:128]
+                data = resize(data, (len(data), 64, 64, 3), anti_aliasing=True).astype(np.float32)
+                print('\tFound batch at {}...current data size = {} episodes'.format(
+                    batch_to_load, len(data)))
+                data_list.append(data)
+            except:
+                print('\tUnable to load:', batch_to_load)
+
         batch_to_load = '../data/obs_data_VAE_' + str(test_batch) + '.npy'
         test_data = np.load(batch_to_load)
         test_data = resize(test_data, (len(test_data), 64, 64, 3), anti_aliasing=True)
-        test_data_reduced = test_data[50:50 + 96]
+        print('\tFound batch at {}...current data size = {} episodes'.format(
+            batch_to_load, len(test_data)))
 
+        print("Begin Training ...")
         for epoch in range(vae.epochs):
-            for batch_num in range(start_batch, max_batch + 1):
+            for batch_num in range(len(data_list)):
                 K.set_value(vae.tau,np.max([vae.tau_min,
                         vae.tau0 * np.exp(-vae.anneal_rate * K.get_value(vae.global_step))]))
                 print('EPOCH ' + str(epoch), "- batch", batch_num, '- step', K.get_value(vae.global_step),
                       "- tau {:5.3f}".format(K.get_value(vae.tau)),
                       '- Validationscore', vae.model.evaluate(test_data, test_data, verbose=0))
 
-                batch_to_load = '../data/obs_data_VAE_' + str(batch_num) + '.npy'
-                # TODO: Handle data properly. dont load all the time!
-                try:
-                    data = np.load(batch_to_load)
-                    # data = data[:150]  # <-- ONLY FOR TESTING
-
-                    data = resize(data, (len(data), 64, 64, 3), anti_aliasing=True).astype(np.float32)
-                    print('\tFound batch at {}...current data size = {} episodes'.format(
-                        batch_to_load, len(data)))
-                except:
-                    print('\tUnable to load:', batch_to_load)
-                    continue
-
+                data = data_list[batch_num]
                 vae.train(data)
                 vae.model.save_weights('./vae/weights.h5')
                 K.set_value(vae.global_step, K.get_value(vae.global_step) + 1)
@@ -250,7 +273,6 @@ def train_vae():
             show_pred(title, test_data_reduced, pred)
             print('')
 
-
     except (KeyboardInterrupt, SystemExit):
         print("Manual Interrupt")
 
@@ -259,29 +281,24 @@ def train_vae():
 
 
 def load_vae():
-
-    raise NotImplementedError
     # sess = tf.InteractiveSession()
-    #
-    # graph = tf.Graph()
-    # with graph.as_default():
-    #     config = tf.ConfigProto()
-    #     config.gpu_options.allow_growth = True
-    #     sess = tf.Session(config=config, graph=graph)
-    #
-    #     network = Network()
-    #     init = tf.global_variables_initializer()
-    #     sess.run(init)
-    #
-    #     saver = tf.train.Saver(max_to_keep=1)
-    #     training_data = data_iterator(batch_size=128)
-    #
-    #     try:
-    #         saver.restore(sess, tf.train.latest_checkpoint(model_path))
-    #     except:
-    #         raise ImportError("Could not restore saved model")
-    #
-    #     return sess, network
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+
+    graph = tf.Graph()
+    with graph.as_default():
+        sess = tf.Session(config=config, graph=graph)
+        network = Network()
+
+        network.set_weights('./vae/weights.h5')
+        try:
+            network.set_weights('./vae/weights.h5')
+        except:
+            print(currentdir)
+            raise ImportError("Could not restore saved model")
+
+        return sess, network
+
 
 if __name__ == '__main__':
     train_vae()
