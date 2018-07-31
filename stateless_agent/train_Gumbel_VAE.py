@@ -29,6 +29,7 @@ model_path = "saved_models/"
 exp_name = '_temp_anneal_2'
 model_name = model_path + 'Gumbel_model' + exp_name
 
+_EXP_NAME = "gumbel"
 _GLOBAL_N = 16
 _GLOBAL_M = 8
 _EMBEDDING_SIZE = _GLOBAL_N * _GLOBAL_M  # TODO: Handle this better!
@@ -62,8 +63,8 @@ class Network(object):
         # h = tf.image.resize_images(self.image, [64, 64])
         # https://stackoverflow.com/questions/42260265/resizing-an-input-image-in-a-keras-lambda-layer
         h = self.encoder_input
-        use_reduced = False
-        print("use_reduced", use_reduced)
+        use_reduced = False  # Debugging legacy
+        # print("use_reduced", use_reduced)
 
         if use_reduced:
             h = Conv2D(filters=32, kernel_size=4, strides=2, padding='same', activation=self.activation)(h)
@@ -123,7 +124,7 @@ class Network(object):
         vae = Model(self.encoder_input, self.vae_output)
         optimizer = Adam(self.learning_rate)
         vae.compile(optimizer=optimizer, loss=self.gumbel_loss)
-        vae.summary()
+        # vae.summary()
 
         tester = Model(self.encoder_input, [self.encoder_logits, self.gumbel_logits, self.vae_output])
 
@@ -184,11 +185,15 @@ class Network(object):
             return
 
         else:
-            return self.encoder.predict(observation)[1]
+            embedding = self.tester.predict(observation)[1]
+            return embedding
 
     def normalize_observation(self, observation):
         # TODO: Probably reshape
-        obs = resize(observation, (len(observation), 64, 64, 3), anti_aliasing=True)
+        if len(observation.shape) == 3:
+            obs = resize(observation, (1, 64, 64, 3), anti_aliasing=True)
+        elif len(observation.shape) == 4:
+                obs = resize(observation, (observation.shape[0], 64, 64, 3), anti_aliasing=True)
         return obs.astype('float32') / 255.
 
     def show_pred(self, title, data, logits, gumbel, pred):
@@ -314,23 +319,23 @@ def train_vae():
 
 
 def load_vae():
-    # sess = tf.InteractiveSession()
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
+    sess = tf.InteractiveSession(config=config)
 
-    graph = tf.Graph()
-    with graph.as_default():
-        sess = tf.Session(config=config, graph=graph)
-        network = Network()
+    # graph = tf.Graph()
+    # with graph.as_default():
+    #     sess = tf.Session(config=config, graph=graph)
+    network = Network()
 
+    network.set_weights('./vae/weights.h5')
+    try:
         network.set_weights('./vae/weights.h5')
-        try:
-            network.set_weights('./vae/weights.h5')
-        except:
-            print(currentdir)
-            raise ImportError("Could not restore saved model")
+    except:
+        print(currentdir)
+        raise ImportError("Could not restore saved model")
 
-        return sess, network
+    return sess, network
 
 
 if __name__ == '__main__':

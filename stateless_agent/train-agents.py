@@ -14,7 +14,7 @@ import multiprocessing as mp
 # from train_VAE import load_vae
 # from train_VAE import _EMBEDDING_SIZE
 from train_Gumbel_VAE import load_vae
-from train_Gumbel_VAE import _EMBEDDING_SIZE
+from train_Gumbel_VAE import _EMBEDDING_SIZE, _EXP_NAME
 
 # _EMBEDDING_SIZE = 32 # TODO Handle this!
 _NUM_PREDICTIONS = 2  # TODO: This is cheating!
@@ -51,7 +51,7 @@ def decide_action(sess, network, observation, params):
     return action
 
 
-def play(params, render=False, verbose=False):
+def play(params, render=True, verbose=False):
     sess, network = load_vae()
     _NUM_TRIALS = 12
     agent_reward = 0
@@ -83,13 +83,17 @@ def play(params, render=False, verbose=False):
         # If reward is out of scale, clip it
         total_reward = np.maximum(-100, total_reward)
         agent_reward += total_reward
+    sess.close()  # TODO: Is this important / a good idea?
 
     return - (agent_reward / _NUM_TRIALS)
 
 def train():
-    multi_thread = False
+    multi_thread = True
+    print('multi_thread:', multi_thread )
 
-    es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': 2})
+    popsize = 16
+    # TODO: Can we load parameters?
+    es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': popsize})
     rewards_through_gens = []
     generation = 1
     try:
@@ -99,11 +103,12 @@ def train():
                 with mp.Pool(mp.cpu_count()) as p:
                     rewards = list(tqdm.tqdm(p.imap(play, list(solutions)), total=len(solutions)))
             else:
-                rewards = play(solutions, True, True)
+                print('NOT MULTI THREADING')
+                rewards = play(solutions[0], True, True)
 
             es.tell(solutions, rewards)
 
-            rewards = np.array(rewards) *(-1.)
+            rewards = np.array(rewards) * (-1.)
             print("\n**************")
             print("Generation: {}".format(generation))
             print("Min reward: {:.3f}\nMax reward: {:.3f}".format(np.min(rewards), np.max(rewards)))
@@ -112,19 +117,20 @@ def train():
 
             generation+=1
             rewards_through_gens.append(rewards)
-            np.save('rewards', rewards_through_gens)
+            np.save('rewards_'+_EXP_NAME, rewards_through_gens)
+            np.save('best_params_'+_EXP_NAME, es.best.get()[0])
 
     except (KeyboardInterrupt, SystemExit):
         print("Manual Interrupt")
-    except Exception as e:
-        print("Exception: {}".format(e))
+    # except Exception as e:
+    #     print("Exception: {}".format(e))
     return es
 
 if __name__ == '__main__':
     es = train()
-    np.save('best_params', es.best.get()[0])
-    # input("Press enter to play... ")
-    # RENDER = True
-    # score = play(es.best.get()[0], render=RENDER, verbose=True)
-    # print("Final Score: {}".format(-score))
+    np.save('best_params_'+_EXP_NAME, es.best.get()[0])
+    input("Press enter to play... ")
+    RENDER = True
+    score = play(es.best.get()[0], render=RENDER, verbose=True)
+    print("Final Score: {}".format(-score))
     print('Done')
