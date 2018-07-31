@@ -12,10 +12,11 @@ import cma
 import multiprocessing as mp
 
 # from train_VAE import load_vae
-# from train_VAE import _EMBEDDING_SIZE
+# from train_VAE import _EMBEDDING_SIZE, _EXP_NAME
 from train_Gumbel_VAE import load_vae
 from train_Gumbel_VAE import _EMBEDDING_SIZE, _EXP_NAME
 
+print('EXP_NAME', _EXP_NAME)
 # _EMBEDDING_SIZE = 32 # TODO Handle this!
 _NUM_PREDICTIONS = 2  # TODO: This is cheating!
 _NUM_ACTIONS = 3
@@ -100,7 +101,10 @@ def train():
         while not es.stop():
             solutions = es.ask()
             if multi_thread:
-                with mp.Pool(mp.cpu_count()) as p:
+                num_parallel = mp.cpu_count()-1
+                # num_parallel = 3
+                with mp.Pool(num_parallel) as p:
+                    print('play begin')
                     rewards = list(tqdm.tqdm(p.imap(play, list(solutions)), total=len(solutions)))
             else:
                 print('NOT MULTI THREADING')
@@ -110,6 +114,7 @@ def train():
 
             rewards = np.array(rewards) * (-1.)
             print("\n**************")
+            print('EXP_NAME:  ', _EXP_NAME)
             print("Generation: {}".format(generation))
             print("Min reward: {:.3f}\nMax reward: {:.3f}".format(np.min(rewards), np.max(rewards)))
             print("Avg reward: {:.3f}".format(np.mean(rewards)))
