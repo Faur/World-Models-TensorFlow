@@ -35,7 +35,7 @@ _EMBEDDING_SIZE = _GLOBAL_N * _GLOBAL_M  # TODO: Handle this better!
 
 class Network(object):
     # Create model
-    def __init__(self, N=_GLOBAL_N, M=_GLOBAL_M, lr = 0.00005):  # TODO: Better param handling
+    def __init__(self, N=_GLOBAL_N, M=_GLOBAL_M, lr=0.00005):  # TODO: Better param handling
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
         self.epochs = 1000
         self.batch_size = 64
@@ -147,6 +147,7 @@ class Network(object):
         # TODO: Check - should this be logits or should we softmax?
         U = K.random_uniform(K.shape(logits), 0, 1)
         y = logits - K.log(-K.log(U + 1e-20) + 1e-20)  # logits + gumbel noise
+        # TODO: should it be logits or log(softmax(logits))? From the paper (Cat. reparam.) it looks like the latter!
         y = K.reshape(y, (-1, self.N, self.M)) / self.tau
         y = softmax(y)
         y = K.reshape(y, (-1, self.N * self.M))
