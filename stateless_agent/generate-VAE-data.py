@@ -28,7 +28,7 @@ def generate_action(prev_action):
     return action*mask
 
 def normalize_observation(observation):
-	return observation.astype('float32') / 255.
+    return observation.astype('float32') / 255.
 
 def simulate_batch(batch_num):
     env = CarRacing()
