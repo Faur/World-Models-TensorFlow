@@ -31,14 +31,12 @@ def get_weights_bias(params):
     weights = np.reshape(weights, [_EMBEDDING_SIZE, _NUM_PREDICTIONS])
     return weights, bias
 
-def decide_action(sess, network, observation, params):
-    observation = network.normalize_observation(observation)
-    embedding = network.get_embedding(sess, observation)
+def decide_action(sess, embedding, params):
     # embedding = sess.run(network.z, feed_dict={network.image: observation[None, :,  :,  :]})
     weights, bias = get_weights_bias(params)
 
     action = np.zeros(_NUM_ACTIONS)
-    prediction = np.matmul(np.squeeze(embedding), weights) + bias
+    prediction = np.matmul(np.reshape(embedding, -1), weights) + bias
     prediction = np.tanh(prediction)
 
     action[0] = prediction[0]
@@ -52,12 +50,13 @@ def decide_action(sess, network, observation, params):
     return action
 
 
-def play(params, render=True, verbose=False):
+def play(params, render=True, verbose=False, save_visualization=False):
     sess, network = load_vae()
     _NUM_TRIALS = 12
     agent_reward = 0
     for trial in range(_NUM_TRIALS):
         observation = env.reset()
+        observation = network.normalize_observation(observation)
         # Little hack to make the Car start at random positions in the race-track
         np.random.seed(int(str(time.time()*1000000)[10:13]))
         position = np.random.randint(len(env.track))
@@ -65,10 +64,15 @@ def play(params, render=True, verbose=False):
 
         total_reward = 0.0
         steps = 0
+        observations = [observation]
         while True:
             if render:
                 env.render()
-            action = decide_action(sess, network, observation, params)
+            observation = network.normalize_observation(observation)
+            observations.append(observation)
+
+            embedding = network.get_embedding(sess, observation)
+            action = decide_action(sess, embedding, params)
             observation, r, done, info = env.step(action)
             total_reward += r
             # NB: done is not True after 1000 steps when using the hack above for
@@ -84,9 +88,16 @@ def play(params, render=True, verbose=False):
         # If reward is out of scale, clip it
         total_reward = np.maximum(-100, total_reward)
         agent_reward += total_reward
-    sess.close()  # TODO: Is this important / a good idea?
+        if save_visualization: break
 
+    if save_visualization:
+        title = 'train_agent_r{:.2f}'.format(agent_reward)
+        print('Saving trajectory:', title)
+        network.show_pred(title, np.concatenate(observations, 0))
+
+    sess.close()  # TODO: Is this important / a good idea?
     return - (agent_reward / _NUM_TRIALS)
+
 
 def train():
     multi_thread = True
@@ -97,6 +108,7 @@ def train():
     es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': popsize})
     rewards_through_gens = []
     generation = 1
+
     try:
         while not es.stop():
             solutions = es.ask()
@@ -108,7 +120,9 @@ def train():
                     rewards = list(tqdm.tqdm(p.imap(play, list(solutions)), total=len(solutions)))
             else:
                 print('NOT MULTI THREADING')
-                rewards = play(solutions[0], True, True)
+                play(solutions[0], render=True, verbose=False, save_visualization=True)
+                es = None
+                break
 
             es.tell(solutions, rewards)
 
@@ -120,10 +134,12 @@ def train():
             print("Avg reward: {:.3f}".format(np.mean(rewards)))
             print("**************\n")
 
-            generation+=1
+            generation += 1
             rewards_through_gens.append(rewards)
             np.save('rewards_'+_EXP_NAME, rewards_through_gens)
             np.save('best_params_'+_EXP_NAME, es.best.get()[0])
+
+            break
 
     except (KeyboardInterrupt, SystemExit):
         print("Manual Interrupt")
@@ -133,9 +149,13 @@ def train():
 
 if __name__ == '__main__':
     es = train()
-    np.save('best_params_'+_EXP_NAME, es.best.get()[0])
-    input("Press enter to play... ")
-    RENDER = True
-    score = play(es.best.get()[0], render=RENDER, verbose=True)
-    print("Final Score: {}".format(-score))
+    if es is not None:
+        print('Training complete')
+        np.save('best_params_'+_EXP_NAME, es.best.get()[0])
+        play(es.best.get()[0], render=True, verbose=False, save_visualization=True)
+
+        input("Press enter to play... ")
+        RENDER = True
+        score = play(es.best.get()[0], render=RENDER, verbose=True)
+        print("Final Score: {}".format(-score))
     print('Done')

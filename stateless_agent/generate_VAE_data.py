@@ -1,5 +1,6 @@
 import numpy as np
 import multiprocessing as mp
+from skimage.transform import resize
 import gym
 from gym.envs.box2d.car_dynamics import Car
 from gym.envs.box2d import CarRacing
@@ -56,10 +57,12 @@ def simulate_batch(batch_num):
 
             obs_data.append(observation)
 
-    print("Saving dataset for batch {}".format(batch_num))
-    np.save('../data/obs_data_VAE_{}'.format(batch_num), obs_data)
+    if save:
+        print("Saving dataset for batch {}".format(batch_num))
+        np.save('../data/obs_data_VAE_{}'.format(batch_num), obs_data)
     
     env.close()
+    return obs_data
 
 def main():
     print("Generating data for env CarRacing-v0")
