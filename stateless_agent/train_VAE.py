@@ -6,6 +6,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 model_path = "saved_models/"
 model_name = model_path + 'model'
 
+_EXP_NAME = "continuous"
 _EMBEDDING_SIZE = 32  # TODO: Handle this better!
 
 class Network(object):
