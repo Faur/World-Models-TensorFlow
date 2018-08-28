@@ -25,17 +25,17 @@ def main(args):
     # while True:
     generate_VAE_data._BATCH_SIZE = 1
     # generate_VAE_data._BATCH_SIZE = 1
-    data = generate_VAE_data.simulate_batch(0, False)
-    data = np.array(data).astype('float32') / 255.
+    data = generate_VAE_data.simulate_batch(0)
+    data = np.array(data).astype('float32') #/ 255.
     data = resize(data, (data.shape[0], 64, 64, 3), anti_aliasing=True, mode='reflect')
 
-    pred = model.model.predict(data, verbose=0)
-    logits, pre_gumbel_softmax, gumbel, hard_sample = model.encoder([data])
-
     title = 'test_seq'
+    model.show_pred(title, data=data)
 
-    model.show_pred(title, data=data, logits=logits, pre_gumbel_softmax=pre_gumbel_softmax,
-                  gumbel=gumbel, hard_sample=hard_sample, pred=pred)
+    # pred = model.model.predict(data, verbose=0)
+    # logits, pre_gumbel_softmax, gumbel, hard_sample = model.encoder([data])
+    # model.show_pred(title, data=data, logits=logits, pre_gumbel_softmax=pre_gumbel_softmax,
+    #               gumbel=gumbel, hard_sample=hard_sample, pred=pred)
 
     sess.close()  # we don't need this
 

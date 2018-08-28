@@ -5,7 +5,7 @@ import time
 
 def display_rewards(file_names):
     assert isinstance(file_names, list)
-    f, axs = plt.subplots(1,2,sharey=True)
+    f, axs = plt.subplots(1, 2, sharey=True, sharex=True)
 
     for i in range(len(file_names)):
         file_name = file_names[i]
@@ -28,11 +28,11 @@ def display_rewards(file_names):
         ax.legend(loc='upper left')
 
         ax.set_xlabel('Generations', fontsize=10)
-        ax.set_xticks(np.arange(min(x), max(x)+1, 10))
+        # ax.set_xticks(np.arange(min(x), max(x)+1, 10))
 
         ax.set_ylabel('Reward', fontsize=10)
 
-
+    plt.tight_layout()
     show(block=False)
         # plt.pause(60)
         # plt.close(fig)

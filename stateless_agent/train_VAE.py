@@ -63,6 +63,9 @@ class Network(object):
     def normalize_observation(self, observation):
         return observation.astype('float32') / 255.
 
+    def show_pred(self, title, data):
+        print('! ! ! Predictions not saved, not implemented for VAE')
+
 
 def data_iterator(batch_size):
     data_files = glob.glob('../data/obs_data_VAE_*')
