@@ -25,14 +25,14 @@ import utils
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-model_path = "saved_models/"
 exp_name = '_temp_anneal_2'
-model_name = model_path + 'Gumbel_model' + exp_name
 
 _EXP_NAME = "gumbel"
 _GLOBAL_N = 16
 _GLOBAL_M = 8
 _EMBEDDING_SIZE = _GLOBAL_N * _GLOBAL_M  # TODO: Handle this better!
+
+TEST_FREQENCY = 1
 
 class Network(object):
     # Create model
@@ -56,6 +56,12 @@ class Network(object):
         self.tau = K.variable(self.tau_min, name="temperature")
         half_life = 10  # it takes about 9 halfings to go from 5.0 to 0.1
         self.anneal_rate = np.log(2)/half_life
+
+        self.KL_boost0 = 2.0
+        self.KL_boost_min = 0.01
+        self.KL_boost = K.variable(self.KL_boost_min, name="KL_boost_min")
+        half_life = 10  # it takes 6 halfings to go from 10 to 0.8 --- 1/2^3=0.125
+        self.KL_boost_anneal_rate = np.log(2)/half_life
 
         self.model, self.decoder, self.tester = self._build_model()
 
@@ -147,7 +153,8 @@ class Network(object):
         x_hat = K.reshape(x_hat, (1, -1))
         rec_loss = self.data_dim * mse(x, x_hat)
 
-        elbo = rec_loss - KL
+        # elbo = rec_loss - KL*self.KL_boost
+        elbo = rec_loss + KL*self.KL_boost
         return elbo
 
     def sampling(self, logits):
@@ -188,20 +195,6 @@ class Network(object):
         else:
             gumbel_samples = self.tester.predict(observation)[1]
             return gumbel_samples
-
-    def normalize_observation(self, observation):
-        # TODO: Probably reshape
-        if len(observation.shape) == 3:
-            obs = resize(observation, (64, 64, 3), anti_aliasing=True, mode='reflect')
-            obs = np.expand_dims(obs, axis=0)
-        elif len(observation.shape) == 4:
-                obs = resize(observation, (observation.shape[0], 64, 64, 3),
-                             anti_aliasing=True, mode='reflect')
-
-        if np.max(obs) > 1.0:  # TODO: This is shit
-            obs = obs / 255.
-
-        return obs.astype('float32')
 
     def make_image(self, fig, title, data, logits, pre_gumbel_softmax,
                    gumbel, hard_sample, pred):
@@ -245,15 +238,29 @@ class Network(object):
         max = len(data)
         for n in range(max):
             fig = plt.figure(1)
-            print('\r' + title+'-'+str(n) + ' - Plotting vae pred: {}/{}'.format(n, max), end='')
 
-            self.make_image(fig, title + ' i' + str(n), data[n], logits[n],
-                            pre_gumbel_softmax[n],
-                            gumbel[n], hard_sample[n], pred[n])
-
-            plt.savefig('./videos/CarRacing-'+title+'-'+str(n)+'.png', cmap='hot', bbox_inches='tight')
+            self.make_image(fig, title + '_i' + str(n), data[n], logits[n],
+                            pre_gumbel_softmax[n], gumbel[n], hard_sample[n], pred[n])
+            file_name = 'CarRacing-'+title+'-{:05d}.png'.format(n)
+            plt.savefig('./videos/'+file_name, cmap='hot', bbox_inches='tight')
+            print("\rSaved: {}".format(file_name), end='')
             plt.close()
         print()
+
+    def normalize_observation(self, observation, output_4d=True):
+        # TODO: Probably reshape
+        if len(observation.shape) == 3:
+            obs = resize(observation, (64, 64, 3), anti_aliasing=True, mode='reflect')
+            if output_4d:
+                obs = np.expand_dims(obs, axis=0)
+        elif len(observation.shape) == 4:
+            obs = resize(observation, (observation.shape[0], 64, 64, 3),
+                         anti_aliasing=True, mode='reflect')
+
+        if np.max(obs) > 1.0:  # TODO: This is shit
+            obs = obs / 255.
+
+        return obs.astype('float32')
 
 def data_iterator(batch_size):
     data_files = glob.glob('../data/obs_data_VAE_*')
@@ -285,53 +292,25 @@ def train_vae():
     except:
         print("No weights found in ./vae/weights.h5 exists")
 
-    start_batch = 0
-    max_batch = 14
-    test_batch = 15
-    # TODO: ^: Don't hardcode like this
-
     try:
         print("Loading data ...")
-        load_individually = False
-        if load_individually:
-            data_list = []
-            for batch_num in range(start_batch, max_batch + 1):
-                batch_to_load = '../data/obs_data_VAE_' + str(batch_num) + '.npy'
-                try:
-                    data = np.load(batch_to_load)
-                    # data = data[100:150]  # <-- ONLY FOR TESTING
-
-                    data = resize(data, (len(data), 64, 64, 3), anti_aliasing=True).astype(np.float32)
-                    print('\tFound batch at {}. Data size = {} episodes'.format(
-                        batch_to_load, len(data)))
-                    data_list.append(data)
-                except:
-                    print('\tUnable to load:', batch_to_load)
-            data = np.concatenate(data_list, axis=0)
-            np.save('data_combined.npy', data)
-            print('data_combined.npy saved. Set load_individually = False')
-        else:
-            data = np.load('data_combined.npy')
-
-        batch_to_load = '../data/obs_data_VAE_' + str(test_batch) + '.npy'
-        test_data = np.load(batch_to_load)
-        test_data = resize(test_data, (len(test_data), 64, 64, 3), anti_aliasing=True, mode="reflect")
-        print('\tFound batch at {}...current data size = {} episodes'.format(
-            batch_to_load, len(test_data)))
+        data = np.load('data_combined.npy')
+        test_data = np.load('test_data.npy')
         print()
 
         print("Begin Training ...")
         for epoch in range(vae.epochs):
             ## Testing
-            if test_run or (epoch % 10 == 0):
-                len_test = 175
+            if test_run or (epoch % TEST_FREQENCY == 0):
+                # len_test = 175
+                len_test = 10 # TODO change back
                 n = np.random.randint(len_test, len(test_data)-len_test)
                 test_data_reduced = np.copy(test_data[n:n + len_test])
                 print('\nTesting: ' + str(epoch), '- step', K.get_value(vae.global_step),
-                      "- tau {:5.3f}".format(K.get_value(vae.tau)),
+                      "- tau {:05.3f}".format(K.get_value(vae.tau)),
                       '- Validation score', vae.model.evaluate(test_data, test_data, verbose=0))
 
-                title = "e{} tau{}".format(epoch, K.get_value(vae.tau))
+                title = "e{}_tau{:05.2f}".format(epoch, K.get_value(vae.tau))
                 vae.show_pred(title, data=test_data_reduced)
 
                 print('')
@@ -340,8 +319,11 @@ def train_vae():
             ## Training
             K.set_value(vae.tau, np.max([vae.tau_min,
                                          vae.tau0 * np.exp(-vae.anneal_rate * K.get_value(vae.global_step))]))
+            K.set_value(vae.KL_boost, np.max([vae.KL_boost_min,
+                                         vae.KL_boost0 * np.exp(-vae.KL_boost_anneal_rate * K.get_value(vae.global_step))]))
             print('EPOCH ' + str(epoch), '- step', K.get_value(vae.global_step),
-                  "- tau {:5.3f}".format(K.get_value(vae.tau)),
+                  "- tau {:5.2f}".format(K.get_value(vae.tau)),
+                  "- KL_boost {:5.2f}".format(K.get_value(vae.KL_boost)),
                   '- Validation score', vae.model.evaluate(test_data, test_data, verbose=0))
             vae.train(data)
             vae.model.save_weights('./vae/weights.h5')
@@ -355,20 +337,20 @@ def train_vae():
     #     print("Exception: {}".format(e))
 
 
-def load_vae():
+def load_vae(path='./vae/weights.h5'):
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     sess = tf.InteractiveSession(config=config)
 
     network = Network()
     try:
-        network.set_weights('./vae/weights.h5')
+        network.set_weights(path)
     except:
         print(currentdir)
         raise ImportError("Could not restore saved model")
 
     ## TODO: Check tau
-    print('Network Tau', K.get_value(network.tau))
+    # print('Network Tau', K.get_value(network.tau))
 
     return sess, network
 

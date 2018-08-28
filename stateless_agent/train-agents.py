@@ -3,29 +3,34 @@ Game is solved when agent consistently gets 900+ points. Track is random every e
 """
 
 import numpy as np
-import gym
 import time, tqdm
+import gym
 from gym.envs.box2d.car_dynamics import Car
 from gym.envs.box2d import CarRacing
 
 import cma
 import multiprocessing as mp
+import datetime
 
 # from train_VAE import load_vae
 # from train_VAE import _EMBEDDING_SIZE, _EXP_NAME
 from train_Gumbel_VAE import load_vae
 from train_Gumbel_VAE import _EMBEDDING_SIZE, _EXP_NAME
 
-print('EXP_NAME', _EXP_NAME)
+gym.logger.set_level(40)
+
+_IS_TEST = False
 # _EMBEDDING_SIZE = 32 # TODO Handle this!
 _NUM_PREDICTIONS = 2  # TODO: This is cheating!
 _NUM_ACTIONS = 3
 _NUM_PARAMS = _NUM_PREDICTIONS * _EMBEDDING_SIZE + _NUM_PREDICTIONS
 
-env = CarRacing()
+if _IS_TEST: print("!!! _IS_TEST is True !!!")
+print('EXP_NAME', _EXP_NAME)
 
 
 def get_weights_bias(params):
+    assert params is not None, 'params is None!'
     weights = params[:_NUM_PARAMS - _NUM_PREDICTIONS]
     bias = params[-_NUM_PREDICTIONS:]
     weights = np.reshape(weights, [_EMBEDDING_SIZE, _NUM_PREDICTIONS])
@@ -50,9 +55,15 @@ def decide_action(sess, embedding, params):
     return action
 
 
-def play(params, render=True, verbose=False, save_visualization=False):
+def play(params, render=True, verbose=False, save_visualization=False, max_len=999):
+    print('Agent train run begun', datetime.datetime.now())
+
     sess, network = load_vae()
-    _NUM_TRIALS = 12
+    env = CarRacing()
+
+    # _NUM_TRIALS = 12
+    _NUM_TRIALS = 8
+
     agent_reward = 0
     for trial in range(_NUM_TRIALS):
         observation = env.reset()
@@ -82,20 +93,23 @@ def play(params, render=True, verbose=False, save_visualization=False):
                 print("step {} total_reward {:+0.2f}".format(steps, total_reward))
 
             steps += 1
-            if steps == 999:
+            if steps == max_len:
+                break
+            # if total_reward < -50:
+            #     break
+            if _IS_TEST and steps > 10:
                 break
 
-        # If reward is out of scale, clip it
         total_reward = np.maximum(-100, total_reward)
         agent_reward += total_reward
-        if save_visualization: break
+        if save_visualization:
+            title = 'train_agent_r{:.2f}'.format(agent_reward)
+            print('Saving trajectory:', title)
+            network.show_pred(title, np.concatenate(observations, 0))
+            break
 
-    if save_visualization:
-        title = 'train_agent_r{:.2f}'.format(agent_reward)
-        print('Saving trajectory:', title)
-        network.show_pred(title, np.concatenate(observations, 0))
-
-    sess.close()  # TODO: Is this important / a good idea?
+    sess.close()
+    env.close()
     return - (agent_reward / _NUM_TRIALS)
 
 
@@ -103,20 +117,41 @@ def train():
     multi_thread = True
     print('multi_thread:', multi_thread )
 
-    popsize = 16
-    # TODO: Can we load parameters?
-    es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': popsize})
-    rewards_through_gens = []
-    generation = 1
+    # popsize = 16
+    popsize = 12
+    if _IS_TEST:
+        popsize = 2
+    num_parallel = mp.cpu_count() - 1
+    # num_parallel = 4
+
+    print('popsize', popsize)
+    print('num_parallel', num_parallel)
+
+    try:
+        if _IS_TEST: raise Exception  # skip!
+        # TODO: Make sure and test that this actually makes sense!
+        prev_model = np.load('best_params_' + _EXP_NAME + '.npy')
+        es = cma.CMAEvolutionStrategy(prev_model, 0.1, {'popsize': popsize})
+        rewards_through_gens = np.load('rewards_'+_EXP_NAME+'.npy')
+        rewards_through_gens = list(rewards_through_gens)
+        print('Model loaded')
+    except:
+        es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': popsize})
+        rewards_through_gens = []
+        print('No model to load / loading failed')
+
+    print("\n**************")
+    print('Begin training!')
+    print('EXP_NAME:  ', _EXP_NAME, ' _NUM_PARAMS', _NUM_PARAMS)
+    print("Generation: {}".format(len(rewards_through_gens)))
+    print(datetime.datetime.now())
+    print("**************\n")
 
     try:
         while not es.stop():
             solutions = es.ask()
             if multi_thread:
-                num_parallel = mp.cpu_count()-1
-                # num_parallel = 3
                 with mp.Pool(num_parallel) as p:
-                    print('play begin')
                     rewards = list(tqdm.tqdm(p.imap(play, list(solutions)), total=len(solutions)))
             else:
                 print('NOT MULTI THREADING')
@@ -124,22 +159,25 @@ def train():
                 es = None
                 break
 
-            es.tell(solutions, rewards)
-
-            rewards = np.array(rewards) * (-1.)
             print("\n**************")
+            es.tell(solutions, rewards)
+            rewards = np.array(rewards) * (-1.)  # cma is a minimizer, so we negate the reward twice
+            rewards_through_gens.append(rewards)
             print('EXP_NAME:  ', _EXP_NAME)
-            print("Generation: {}".format(generation))
+            print("Generation: {}".format(len(rewards_through_gens)))
             print("Min reward: {:.3f}\nMax reward: {:.3f}".format(np.min(rewards), np.max(rewards)))
             print("Avg reward: {:.3f}".format(np.mean(rewards)))
+            print("Agent characteristics: params {}, min {:.3f} mean {:.3f}, max {:.3f}, std {:.3f}".format(
+                    _NUM_PARAMS, np.min(es.best.get()[0]), np.mean(es.best.get()[0]),
+                     np.max(es.best.get()[0]), np.std(es.best.get()[0])))
+            print(datetime.datetime.now())
             print("**************\n")
 
-            generation += 1
-            rewards_through_gens.append(rewards)
-            np.save('rewards_'+_EXP_NAME, rewards_through_gens)
-            np.save('best_params_'+_EXP_NAME, es.best.get()[0])
-
-            break
+            if len(rewards_through_gens) % 10 == 0:
+                play(es.best.get()[0], render=True, verbose=False, save_visualization=True, max_len=200)
+            if not _IS_TEST:
+                np.save('rewards_'+_EXP_NAME, rewards_through_gens)
+                np.save('best_params_'+_EXP_NAME, es.best.get()[0])
 
     except (KeyboardInterrupt, SystemExit):
         print("Manual Interrupt")
@@ -149,9 +187,11 @@ def train():
 
 if __name__ == '__main__':
     es = train()
+
     if es is not None:
         print('Training complete')
-        np.save('best_params_'+_EXP_NAME, es.best.get()[0])
+        if not _IS_TEST:
+            np.save('best_params_'+_EXP_NAME, es.best.get()[0])
         play(es.best.get()[0], render=True, verbose=False, save_visualization=True)
 
         input("Press enter to play... ")
