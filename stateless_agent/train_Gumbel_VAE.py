@@ -292,8 +292,7 @@ def train_vae():
 
     try:
         print("Loading data ...")
-        load_individually = False
-        if load_individually:
+        if not os.path.isfile('data_combined.npy'):
             data_list = []
             for batch_num in range(start_batch, max_batch + 1):
                 batch_to_load = '../data/obs_data_VAE_' + str(batch_num) + '.npy'
@@ -309,7 +308,6 @@ def train_vae():
                     print('\tUnable to load:', batch_to_load)
             data = np.concatenate(data_list, axis=0)
             np.save('data_combined.npy', data)
-            print('data_combined.npy saved. Set load_individually = False')
         else:
             data = np.load('data_combined.npy')
 
