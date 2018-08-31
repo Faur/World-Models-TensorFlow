@@ -31,7 +31,7 @@ def generate_action(prev_action):
 def normalize_observation(observation):
     return observation.astype('float32') / 255.
 
-def simulate_batch(batch_num):
+def simulate_batch(batch_num, save=True):
     env = CarRacing()
 
     obs_data = []

@@ -63,6 +63,11 @@ class Network(object):
     def normalize_observation(self, observation):
         return observation.astype('float32') / 255.
 
+    def predict(self, sess, data):
+        print(sess)
+        pred, z = sess.run([self.reconstructions, self.z], feed_dict={self.image:data})
+        return pred, z
+
 
 def data_iterator(batch_size):
     data_files = glob.glob('../data/obs_data_VAE_*')

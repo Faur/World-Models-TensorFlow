@@ -11,10 +11,10 @@ from gym.envs.box2d import CarRacing
 import cma
 import multiprocessing as mp
 
-# from train_VAE import load_vae
-# from train_VAE import _EMBEDDING_SIZE, _EXP_NAME
-from train_Gumbel_VAE import load_vae
-from train_Gumbel_VAE import _EMBEDDING_SIZE, _EXP_NAME
+from train_VAE import load_vae
+from train_VAE import _EMBEDDING_SIZE, _EXP_NAME
+# from train_Gumbel_VAE import load_vae
+# from train_Gumbel_VAE import _EMBEDDING_SIZE, _EXP_NAME
 
 print('EXP_NAME', _EXP_NAME)
 # _EMBEDDING_SIZE = 32 # TODO Handle this!
@@ -147,7 +147,7 @@ def train():
     #     print("Exception: {}".format(e))
     return es
 
-if __name__ == '__main__':
+def main():
     es = train()
     if es is not None:
         print('Training complete')
@@ -159,3 +159,7 @@ if __name__ == '__main__':
         score = play(es.best.get()[0], render=RENDER, verbose=True)
         print("Final Score: {}".format(-score))
     print('Done')
+
+
+if __name__ == '__main__':
+    main()
