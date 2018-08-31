@@ -37,3 +37,15 @@ Work in Progress
 
 ### 3. ....
 
+
+## Other Notes
+
+Generate video using the linux terminal: 
+ 
+    avconv -f image2 -i <IMAGENAME>%03d.png -r 24 -s 800x600 CarRacing.avi 
+
+
+    ffmpeg -framerate 25 -i CarRacing-test_seq-%05d.png output.mp4
+
+
+
