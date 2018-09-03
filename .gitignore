@@ -3,7 +3,7 @@ __pycache__/
 logdir/
 gym
 .idea/*
-*.png
 
 stateless_agent/.ipynb_checkpoints/
 stateless_agent/data_combined.npy
+stateless_agent/videos
