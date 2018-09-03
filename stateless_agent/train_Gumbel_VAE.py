@@ -58,7 +58,7 @@ class Network(object):
         self.anneal_rate = np.log(2)/half_life
 
         self.KL_boost0 = 2.0
-        self.KL_boost_min = 0.01
+        self.KL_boost_min = 0.01  # TODO: might be to low? the softmax becomes very confident!
         self.KL_boost = K.variable(self.KL_boost_min, name="KL_boost_min")
         half_life = 10  # it takes 6 halfings to go from 10 to 0.8 --- 1/2^3=0.125
         self.KL_boost_anneal_rate = np.log(2)/half_life

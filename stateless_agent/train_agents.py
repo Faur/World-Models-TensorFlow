@@ -61,7 +61,7 @@ def play(params, render=True, verbose=False, save_visualization=False, max_len=9
     sess, network = load_vae()
     env = CarRacing()
 
-    # _NUM_TRIALS = 12
+    # _NUM_TRIALS = 16  # <-- Ha and Schmidhuber
     _NUM_TRIALS = 8
 
     agent_reward = 0
@@ -117,6 +117,7 @@ def train():
     multi_thread = True
     print('multi_thread:', multi_thread )
 
+    # popsize = 64  # <-- Ha and Schmidhuber
     # popsize = 16
     popsize = 12
     if _IS_TEST:
