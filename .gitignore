@@ -1,12 +1,9 @@
 data
 __pycache__/
 logdir/
-saved_models
-*npy
 gym
 .idea/*
 *.png
 
 stateless_agent/.ipynb_checkpoints/
-
-stateless_agent/vae/weights\.h5
+stateless_agent/data_combined.npy
