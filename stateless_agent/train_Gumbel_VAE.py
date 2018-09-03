@@ -28,11 +28,13 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 exp_name = '_temp_anneal_2'
 
 _EXP_NAME = "gumbel"
-_GLOBAL_N = 16
-_GLOBAL_M = 8
+# _GLOBAL_N = 16
+# _GLOBAL_M = 8
+_GLOBAL_N = 32  # number of variables
+_GLOBAL_M = 32  # number of values per variable
 _EMBEDDING_SIZE = _GLOBAL_N * _GLOBAL_M  # TODO: Handle this better!
 
-TEST_FREQENCY = 1
+TEST_FREQENCY = 10
 
 class Network(object):
     # Create model
@@ -357,3 +359,5 @@ def load_vae(path='./vae/weights.h5'):
 
 if __name__ == '__main__':
     train_vae()
+    # load_vae()
+    print('done')

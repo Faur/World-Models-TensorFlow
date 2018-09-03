@@ -19,9 +19,9 @@ def display_rewards(file_names):
         mx = np.max(rewards, axis=1)
         mn = np.min(rewards, axis=1)
 
-        ax.scatter(x, rewards.flatten(), s=8)
-        ax.plot(mean, c='g', label='Averages')
-        ax.plot(mn, c='r', label='Minimum')
+        ax.scatter(x, rewards.flatten(), s=8, alpha=0.25)
+        ax.plot(mean, c='g', lw=3, label='Averages')
+        ax.plot(mn, c='r',  label='Minimum')
         ax.plot(mx, c='y', label='Maximums')
 
         ax.set_title(file_name)
@@ -39,6 +39,7 @@ def display_rewards(file_names):
 
 if __name__ == '__main__':
     file_names = ['rewards_continuous.npy', 'rewards_gumbel.npy']
+    print('Displaying', file_names)
     display_rewards(file_names)
 
     plt.show()

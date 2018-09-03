@@ -2,20 +2,21 @@
 Game is solved when agent consistently gets 900+ points. Track is random every episode.
 """
 
-import numpy as np
-import time, tqdm
+from train_VAE import load_vae
+from train_VAE import _EMBEDDING_SIZE, _EXP_NAME
+# from train_Gumbel_VAE import load_vae
+# from train_Gumbel_VAE import _EMBEDDING_SIZE, _EXP_NAME
+
 import gym
 from gym.envs.box2d.car_dynamics import Car
 from gym.envs.box2d import CarRacing
 
 import cma
-import multiprocessing as mp
 import datetime
 
-from train_VAE import load_vae
-from train_VAE import _EMBEDDING_SIZE, _EXP_NAME
-# from train_Gumbel_VAE import load_vae
-# from train_Gumbel_VAE import _EMBEDDING_SIZE, _EXP_NAME
+import time, tqdm
+import numpy as np
+import multiprocessing as mp
 
 gym.logger.set_level(40)
 
@@ -56,7 +57,8 @@ def decide_action(sess, embedding, params):
 
 
 def play(params, render=True, verbose=False, save_visualization=False, max_len=999):
-    print('Agent train run begun', datetime.datetime.now())
+    time_start = datetime.datetime.now()
+    print('Agent train run begun ' + str(time_start))
 
     sess, network = load_vae()
     env = CarRacing()
@@ -107,9 +109,12 @@ def play(params, render=True, verbose=False, save_visualization=False, max_len=9
             print('Saving trajectory:', title)
             network.show_pred(title, np.concatenate(observations, 0))
             break
+        print('.', end='')
 
     sess.close()
     env.close()
+    print('Agent done - ' + str(time_start))
+
     return - (agent_reward / _NUM_TRIALS)
 
 
@@ -122,6 +127,7 @@ def train():
     popsize = 12
     if _IS_TEST:
         popsize = 2
+        popsize = 12
     num_parallel = mp.cpu_count() - 1
     # num_parallel = 4
 
@@ -132,12 +138,15 @@ def train():
         if _IS_TEST: raise Exception  # skip!
         # TODO: Make sure and test that this actually makes sense!
         prev_model = np.load('best_params_' + _EXP_NAME + '.npy')
+        if prev_model is None or prev_model[0]:
+            print('prev_model is None')
         es = cma.CMAEvolutionStrategy(prev_model, 0.1, {'popsize': popsize})
         rewards_through_gens = np.load('rewards_'+_EXP_NAME+'.npy')
         rewards_through_gens = list(rewards_through_gens)
         print('Model loaded')
     except:
-        es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': popsize})
+        # es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.1, {'popsize': popsize})
+        es = cma.CMAEvolutionStrategy(_NUM_PARAMS * [0], 0.01, {'popsize': popsize})
         rewards_through_gens = []
         print('No model to load / loading failed')
 
@@ -152,8 +161,12 @@ def train():
         while not es.stop():
             solutions = es.ask()
             if multi_thread:
-                with mp.Pool(num_parallel) as p:
-                    rewards = list(tqdm.tqdm(p.imap(play, list(solutions)), total=len(solutions)))
+                try:
+                    with mp.Pool(num_parallel) as p:
+                        rewards = list(tqdm.tqdm(p.imap_unordered(play, list(solutions)), total=len(solutions)))
+                except:
+                    break
+                    continue
             else:
                 print('NOT MULTI THREADING')
                 play(solutions[0], render=True, verbose=False, save_visualization=True)
@@ -175,10 +188,15 @@ def train():
             print("**************\n")
 
             if len(rewards_through_gens) % 10 == 0:
-                play(es.best.get()[0], render=True, verbose=False, save_visualization=True, max_len=200)
+                pass
+                # this seems to make an error
+                # play(es.best.get()[0], render=True, verbose=False, save_visualization=True, max_len=200)
             if not _IS_TEST:
                 np.save('rewards_'+_EXP_NAME, rewards_through_gens)
-                np.save('best_params_'+_EXP_NAME, es.best.get()[0])
+                if es.best.get()[0] is not None:
+                    np.save('best_params_'+_EXP_NAME, np.array(es.best.get()[0]))
+                else:
+                    np.save('best_params_'+_EXP_NAME, np.array(es.ask()[0]))
 
     except (KeyboardInterrupt, SystemExit):
         print("Manual Interrupt")
@@ -192,7 +210,10 @@ def main():
     if es is not None:
         print('Training complete')
         if not _IS_TEST:
-            np.save('best_params_'+_EXP_NAME, es.best.get()[0])
+            if es.best.get()[0] is not None:
+                np.save('best_params_' + _EXP_NAME, np.array(es.best.get()[0]))
+            else:
+                np.save('best_params_' + _EXP_NAME, np.array(es.ask()[0]))
         play(es.best.get()[0], render=True, verbose=False, save_visualization=True)
 
         input("Press enter to play... ")
