@@ -65,8 +65,9 @@ class Network(object):
 
     def predict(self, sess, data):
         print(sess)
-        pred, z = sess.run([self.reconstructions, self.z], feed_dict={self.image:data})
-        return pred, z
+        pred, mu, z_logvar, z = sess.run([self.reconstructions, self.z_mu, self.z_logvar, self.z], feed_dict={self.image:data})
+        sigma = np.exp(z_logvar/2)
+        return pred, mu, sigma, z
 
 
 def data_iterator(batch_size):

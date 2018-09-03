@@ -11,9 +11,9 @@ import generate_VAE_data
 import train_VAE 
 import train_Gumbel_VAE
 
-def generate_data():
+def generate_data(time_steps=None):
     generate_VAE_data._BATCH_SIZE = 1
-    data96 = generate_VAE_data.simulate_batch(0, False)
+    data96 = generate_VAE_data.simulate_batch(0, False, time_steps=time_steps, reduce_size=False)
     data96 = np.array(data96).astype('float32')
     data64 = resize(data96, (data96.shape[0], 64, 64, 3), anti_aliasing=True, mode='reflect')
     return data96, data64
@@ -43,7 +43,7 @@ def process_data(data, title, gumbel=True):
     sess.close()  # we don't need this
 
 
-def main(args):
+def main():
     data = generate_data()
     
     # controller = args.controller
@@ -57,12 +57,14 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Human interface')
-
-    parser.add_argument('--show', type=str, default='both', choices=['vae', 'sim', 'both'], help='Show the output of the VAE?')
+    # parser = argparse.ArgumentParser(description='Human interface')
+    #
+    # parser.add_argument('--show', type=str, default='both', choices=['vae', 'sim', 'both'], help='Show the output of the VAE?')
     # parser.add_argument('--controller', type=str, default='random', choices=['human', 'agent', 'random'],
     #                     help="How should actions be selected? ['human', 'agent', 'random']")
-    args = parser.parse_args()
-    print(args, '\n')
+    # args = parser.parse_args()
+    # print(args, '\n')
+    #
+    # main(args)
 
-    main(args)
+    main()

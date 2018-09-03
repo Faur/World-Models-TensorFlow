@@ -5,7 +5,7 @@ import time
 
 def display_rewards(file_names):
     assert isinstance(file_names, list)
-    f, axs = plt.subplots(1, 2, sharey=True, sharex=True)
+    f, axs = plt.subplots(1, 2, figsize=(12,6), sharey=True)  #, sharex=True)
 
     for i in range(len(file_names)):
         file_name = file_names[i]

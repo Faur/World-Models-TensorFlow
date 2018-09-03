@@ -30,14 +30,16 @@ def generate_action(prev_action):
     return action*mask
 
 
-
-def normalize_observation(observation, output_4d=True):
+def normalize_observation(observation, output_4d=True, reduce_size=True):
     # TODO: Probably reshape
+    obs = observation
     if len(observation.shape) == 3:
-        obs = resize(observation, (64, 64, 3), anti_aliasing=True, mode='reflect')
+        if reduce_size:
+            obs = resize(observation, (64, 64, 3), anti_aliasing=True, mode='reflect')
         if output_4d:
             obs = np.expand_dims(obs, axis=0)
     elif len(observation.shape) == 4:
+        if reduce_size:
             obs = resize(observation, (observation.shape[0], 64, 64, 3),
                          anti_aliasing=True, mode='reflect')
 
@@ -47,10 +49,11 @@ def normalize_observation(observation, output_4d=True):
     return obs.astype('float32')
 
 
-def simulate_batch(batch_num):
-    save = True
-
+def simulate_batch(batch_num, save=True, time_steps=None, reduce_size=True):
     env = CarRacing()
+
+    if time_steps is None:
+        time_steps = _TIME_STEPS
 
     obs_data = []
     action_data = []
@@ -60,17 +63,17 @@ def simulate_batch(batch_num):
         # Little hack to make the Car start at random positions in the race-track
         position = np.random.randint(len(env.track))
         env.car = Car(env.world, *env.track[position][1:4])
-        observation = normalize_observation(observation, output_4d=False)
+        observation = normalize_observation(observation, output_4d=False, reduce_size=reduce_size)
         obs_data.append(observation)
 
-        for _ in range(_TIME_STEPS):
+        for _ in range(time_steps):
             if _RENDER:
                 env.render()
 
             action = generate_action(action)
 
             observation, reward, done, info = env.step(action)
-            observation = normalize_observation(observation, output_4d=False)
+            observation = normalize_observation(observation, output_4d=False, reduce_size=reduce_size)
 
             obs_data.append(observation)
 
